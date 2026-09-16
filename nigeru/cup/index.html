@@ -1,543 +1,863 @@
 <!doctype html>
 <html lang="ja">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
-<title>コップ、逃げる。</title>
-<meta name="description" content="机の上のコップになって、猫の手から60秒逃げ切るだけのゲーム。逃げる。シリーズ 01">
-<meta property="og:title" content="コップ、逃げる。">
-<meta property="og:description" content="机の上のコップになって、猫の手から60秒逃げ切るだけのゲーム。">
-<meta property="og:type" content="website">
-<meta property="og:image" content="https://mopsworks.jp/games/nigeru/cup/img/og.png">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#f7ecd2">
-<style>
-:root{
-  --bg:#f7ecd2; --table:#c07f45; --edge:#8e5628; --floor:#a9713b;
-  --fur:#4c403a; --line:#241b15; --ink:#2b2118; --accent:#d9483f;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-img{-webkit-user-drag:none;user-drag:none;pointer-events:none}   /* 画像の上からドラッグを始めてもブラウザの画像ドラッグにならない */
-html,body{height:100%;background:var(--bg);color:var(--ink);
-  font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
-  overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
-#game{position:relative;width:100%;max-width:440px;height:100%;margin:0 auto;overflow:hidden}
-
-#score{position:absolute;top:16px;left:0;right:0;text-align:center;
-  font-size:46px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;z-index:1}
-#score small{font-size:18px;font-weight:500;margin-left:3px}
-#best{position:absolute;top:70px;left:0;right:0;text-align:center;font-size:14px;opacity:.6;z-index:1}
-
-/* ---- 猫：顔はPNG、瞳孔と寝顔だけSVGを重ねる ---- */
-#cat{position:absolute;top:var(--catTop,92px);left:50%;width:240px;aspect-ratio:860/565;transform:translateX(-50%);
-  transition:transform .45s cubic-bezier(.2,.8,.2,1),top .45s;z-index:0}
-#cat.big{transform:translateX(-50%) scale(1.9);top:170px;z-index:6}
-#cat img,#cat svg{position:absolute;inset:0;width:100%;height:100%;display:block}
-#cat #faceY{display:none}
-#cat.nya #faceN{display:none}
-#cat.nya #faceY{display:block}
-.pupil{fill:#161210;transition:rx .1s,cx .15s}
-#cat.aim .pupil{transition:rx .1s}
-.sleepEye{fill:#4a3e38;stroke:#4a3e38;stroke-width:30;stroke-linejoin:round;display:none}   /* 目の輪郭ごと毛色で塗りつぶす（輪郭の外側まで覆う） */
-.shut{fill:none;stroke:#241b15;stroke-width:8;stroke-linecap:round;display:none}
-#cat.sleep .pupil{display:none}
-#cat.sleep .sleepEye,#cat.sleep .shut{display:block}
-.zzz{position:absolute;top:-6px;right:0;font-size:32px;display:none}
-#cat.sleep .zzz{display:block}
-
-/* ---- 机・床・コップ ---- */
-#table{position:absolute;left:0;right:0;z-index:1;line-height:0}
-#table img{width:100%;height:100%;display:block;object-fit:cover;object-position:top center}
-#cup{position:absolute;left:0;top:0;width:46px;height:auto;will-change:transform;z-index:2}
-#props{position:absolute;inset:0;z-index:2;pointer-events:none}
-.prop{position:absolute;line-height:1;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 1px rgba(60,30,10,.25))}
-
-/* ---- 腕：肩（机の縁）を軸に回転し、伸びる ---- */
-.armv{position:absolute;left:0;top:0;width:56px;height:0;transform-origin:28px 0;display:none;will-change:transform,height;z-index:3}
-.armv .bar{position:absolute;left:-1.5px;top:0;width:60px;height:100%;background:#4d3f38;border:3px solid #251c16;border-bottom:0;border-radius:30px 30px 0 0;min-height:22px}
-.armv .tip{position:absolute;left:-9px;bottom:-40px;width:74px;display:block;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px);mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}  /* 先端の上端を溶かして腕と繋ぐ */
-
-.shard{position:absolute;left:0;top:0;background:#dfeef5;border:1px solid #9cc3d6;z-index:4;pointer-events:none;will-change:transform}
-
-/* ---- オーバーレイ ---- */
-#overlay{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
-  padding:0 28px 48px;text-align:center;background:rgba(247,236,210,.9);opacity:0;pointer-events:none;transition:opacity .3s}
-#overlay.show{opacity:1;pointer-events:auto}
-#big{font-size:32px;font-weight:700;line-height:1.25}
-#big b{font-size:60px;font-variant-numeric:tabular-nums}
-#line{font-size:21px;margin:14px 0 6px;min-height:1.4em}
-#sub{font-size:15px;opacity:.7;min-height:1.3em}
-#btns{display:flex;gap:10px;margin-top:22px;width:100%}
-button{flex:1;font:inherit;font-size:17px;padding:14px 8px;border:0;border-radius:14px;background:var(--ink);color:#fff;cursor:pointer}
-button.ghost{background:transparent;color:var(--ink);border:2px solid var(--ink)}
-button:active{transform:translateY(1px)}
-#flash{position:absolute;left:0;right:0;top:40%;text-align:center;font-size:36px;font-weight:700;color:var(--accent);opacity:0;pointer-events:none;z-index:7}
-#flash.on{animation:pop .7s ease-out forwards}
-@keyframes pop{0%{opacity:0;transform:scale(.6)}20%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(1)}}
-</style>
-</head>
-<body>
-<div id="game">
-  <div id="score">0.0<small>s</small></div>
-  <div id="best"></div>
-
-  <div id="cat">
-    <img id="faceN" src="img/face_closed.png" alt="">
-    <img id="faceY" src="img/face_open.png" alt="">
-    <svg viewBox="0 0 860 565" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <clipPath id="clipL"><path d="M207.3 322.2 A109.3 109.3 0 0 1 380.3 322.2 A109.3 109.3 0 0 1 207.3 322.2 Z"/></clipPath>
-        <clipPath id="clipR"><path d="M502.0 319.2 A107.0 107.0 0 0 1 672.0 319.2 A107.0 107.0 0 0 1 502.0 319.2 Z"/></clipPath>
-      </defs>
-      <ellipse class="pupil" id="pL" clip-path="url(#clipL)" cx="293.8" cy="322.2" rx="7" ry="36"/>
-      <ellipse class="pupil" id="pR" clip-path="url(#clipR)" cx="587.0" cy="319.2" rx="7" ry="36"/>
-      <path class="sleepEye" d="M207.3 322.2 A109.3 109.3 0 0 1 380.3 322.2 A109.3 109.3 0 0 1 207.3 322.2 Z"/><path class="sleepEye" d="M502.0 319.2 A107.0 107.0 0 0 1 672.0 319.2 A107.0 107.0 0 0 1 502.0 319.2 Z"/>
-      <path class="shut" d="M219 322 Q 293.8 344 368 322"/>
-      <path class="shut" d="M514 319 Q 587.0 341 660 319"/>
-    </svg>
-    <div class="zzz">💤</div>
-  </div>
-
-  <div class="armv" id="armL"><div class="bar"></div><img class="tip" src="img/paw.png" alt=""></div>
-  <div class="armv" id="armR"><div class="bar"></div><img class="tip" src="img/paw.png" alt=""></div>
-
-  <div id="table"><img src="img/table.png" alt=""></div>
-  <div id="props"></div>
-  <img id="cup" src="img/cup.png" alt="">
-  <div id="flash"></div>
-
-  <div id="overlay" class="show">
-    <div id="big">コップ、逃げる。<br><span style="font-size:15px;font-weight:500;opacity:.7">逃げる。シリーズ 01</span></div>
-    <div id="line">机の上のコップになって、猫から逃げる。</div>
-    <div id="sub">ドラッグで左右に動く。60秒逃げ切ったら勝ち。</div>
-    <div id="btns"><button id="btnMain">はじめる</button></div>
-  </div>
-</div>
-
-<script>
-const PROP = {"salt": "img/prop_salt.png", "spoon": "img/prop_spoon.png", "receipt": "img/prop_receipt.png", "bread": "img/prop_bread.png", "hairband": "img/prop_hairband.png"};
-/* =========================================================
-   ステージ設定
-   ========================================================= */
-const STAGE = {
-  id: 'cat',
-  title: 'コップ、逃げる。',
-  clearTime: 60,
-  difficulty: [
-    { from: 0,  interval: 1.6, tele: 0.60, types: ['A'] },
-    { from: 10, interval: 1.3, tele: 0.50, types: ['A','B'] },
-    { from: 25, interval: 1.0, tele: 0.40, types: ['A','B','C'] },
-    { from: 45, interval: 0.8, tele: 0.30, types: ['A','B','C','D'] },
-  ],
-  minInterval: 0.5,
-  strikeTime: 0.15,
-  retractTime: 0.20,
-  nyaLead: 0.12,
-  pupil: { thin: 7, narrow: 4, wide: 26, look: 36 },   // 瞳孔：通常／狙い中（細める）／攻撃直前（丸く）／左右に動く量（画像座標）
-  deathLines: [
-    '見てた？','今のは事故','机に置く方が悪い','反省はしてる。ちょっと','ほな',
-    '手が滑った。滑らせた','次はもっと早いで','悪いとは思ってる。落とすけど',
-    'ごめんて。ほんまに。ちょっとだけ','ごめんて。ほんまに。ちょっとだけ',
-    '今日はこのへんで','音、聞いた？',
-  ],
-  lateDeathLines: ['痛かった？…そっか'],
-  clearLines: ['ようやった。ちょっと本気出した','最後まで逃げたコップ、あんまりおらん'],
-  titles: [
-    { under: 5,  name: '称号：置き物' },
-    { under: 15, name: '称号：揺れただけ' },
-    { under: 30, name: '称号：逃げ足のコップ' },
-    { under: 60, name: '称号：不屈のコップ' },
-    { under: 1e9, name: '称号：机の主' },
-  ],
-  // 机の手前（コップが来ない場所）の小物。当たり判定なし。x,yは画面比率、絵はPNGに差し替え可
-  props: [
-    { src: PROP.salt,     x: 0.13, y: 0.86, size: 38 },
-    { src: PROP.spoon,    x: 0.85, y: 0.84, size: 54, rotate: -20 },
-    { src: PROP.bread,    x: 0.70, y: 0.93, size: 56 },
-    { src: PROP.receipt,  x: 0.34, y: 0.93, size: 46, rotate: 12 },
-  ],
-  storageKey: 'nekocup_best',
-};
-
-/* ================= エンジン ================= */
-const $ = s => document.querySelector(s);
-const game = $('#game'), catEl = $('#cat'), cupEl = $('#cup'), tableEl = $('#table');
-const scoreEl = $('#score'), bestEl = $('#best'), overlay = $('#overlay');
-const bigEl = $('#big'), lineEl = $('#line'), subEl = $('#sub'), btns = $('#btns'), flash = $('#flash');
-const pL = $('#pL'), pR = $('#pR');
-const EYE = { l: 293.8, r: 587.0 };
-const armL = $('#armL'), armR = $('#armR');
-const SH = { L: { x: 0, y: 0 }, R: { x: 0, y: 0 } };   // 肩の位置
-
-const CUP_W = 46, CUP_H = 47, PAW_W = 60;
-const HIT_MARGIN = 18;
-let W = 0, H = 0, tableY = 0, cupY = 0, cupLine = 0;
-let state = 'title';
-let t = 0, last = 0;
-let P = { x: 0 };
-let cur = null, wait = 0;
-let best = +(localStorage.getItem(STAGE.storageKey) || 0);
-const rnd = a => a[Math.floor(Math.random() * a.length)];
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-
-function layout() {
-  W = game.clientWidth; H = game.clientHeight;
-  // 机の奥端 44%。猫は顎が机に隠れる位置（口は見える）。コップの底 73%。その下は親指エリア
-  const tableTop = Math.round(H * 0.44);
-  tableEl.style.top = tableTop + 'px'; tableEl.style.height = (H - tableTop) + 'px';   // 縦長端末では横を切って下端まで届かせる
-  const catH = catEl.offsetHeight, catW = catEl.offsetWidth;
-  const catTop = Math.round(tableTop - catH * 0.80);
-  catEl.style.setProperty('--catTop', catTop + 'px');
-  const cupBase = Math.round(H * 0.73);
-  cupY = cupBase - CUP_H;
-  cupLine = cupBase - CUP_H * 0.45;           // 肉球の中心が来る高さ（コップの胴体）
-  tableY = cupBase;
-  // 肩：顔の両脇、机の縁のすぐ下
-  SH.L = { x: Math.round(W / 2 - catW * 0.38), y: tableTop + 10 };
-  SH.R = { x: Math.round(W / 2 + catW * 0.38), y: tableTop + 10 };
-  P.x = clamp(P.x || W / 2, CUP_W / 2, W - CUP_W / 2);
-  drawProps();
-  drawCup();
-}
-function drawProps() {
-  const box = document.getElementById('props'); box.innerHTML = '';
-  for (const p of STAGE.props) {
-    const el = document.createElement('div'); el.className = 'prop';
-    if (p.src) { const im = document.createElement('img'); im.src = p.src; im.style.width = p.size + 'px'; el.appendChild(im); }
-    else { el.textContent = p.emoji; el.style.fontSize = p.size + 'px'; }
-    el.style.left = (p.x * W) + 'px'; el.style.top = (p.y * H) + 'px';
-    if (p.rotate) el.style.transform += ` rotate(${p.rotate}deg)`;
-    box.appendChild(el);
-  }
-}
-function drawCup() { cupEl.style.transform = `translate(${P.x - CUP_W / 2}px, ${cupY}px)`; }
-function showBest() { bestEl.textContent = best ? `ベスト ${best.toFixed(1)}s` : ''; }
-
-/* ---- 猫の目・口 ---- */
-let nyaDone = false, lookX = 0;
-function catLook(x, ready) {
-  const dx = clamp((x - W / 2) / (W / 2), -1, 1) * STAGE.pupil.look;
-  pL.setAttribute('cx', EYE.l + dx); pR.setAttribute('cx', EYE.r + dx);
-  catEl.classList.toggle('aim', !!ready);      // 狙い中は瞳孔の移動をアニメさせず即追従
-  if (!ready) catCalm();
-}
-function catFollow(dt) {                        // 待機中：少し遅れてコップを追う
-  lookX += (P.x - lookX) * Math.min(1, dt * 3.5);
-  catLook(lookX, false);
-}
-function catNya() {
-  pL.setAttribute('rx', STAGE.pupil.wide); pR.setAttribute('rx', STAGE.pupil.wide);
-  catEl.classList.add('nya');
-  if (!nyaDone) { nyaDone = true; sfx('nya'); }
-}
-function catCalm() {
-  pL.setAttribute('rx', STAGE.pupil.thin); pR.setAttribute('rx', STAGE.pupil.thin);
-  catEl.classList.remove('nya'); nyaDone = false;
-}
-function catRest() { catLook(W / 2, false); }
-function teleRun(p, d, x) {
-  catLook(x, true);
-  if (p >= 1 - STAGE.nyaLead / d) catNya();
-  else if (!catEl.classList.contains('nya')) { pL.setAttribute('rx', STAGE.pupil.narrow); pR.setAttribute('rx', STAGE.pupil.narrow); }   // 狙い中は少し細める
-}
-
-/* ---- 腕：肩(side)から (tx,ty) へ、depth(0-1)だけ伸びる ---- */
-function armEl(side) { return side === 'L' ? armL : armR; }
-function armTo(side, tx, ty, depth) {
-  const el = armEl(side), sh = SH[side];
-  const dx = tx - sh.x, dy = ty - sh.y, L = Math.hypot(dx, dy);
-  const deg = -Math.atan2(dx, dy) * 180 / Math.PI;
-  el.style.display = 'block';
-  el.style.left = (sh.x - 28) + 'px'; el.style.top = sh.y + 'px';
-  el.style.transform = `rotate(${deg}deg)`;
-  el.style.height = Math.max(0, depth * L - 15) + 'px';     // 先端の肉球の中心が (tx,ty) に来る
-}
-function hideArms() { armL.style.display = 'none'; armR.style.display = 'none'; }
-function nearSide(x) { return x < W / 2 ? 'L' : 'R'; }
-function farSide(x)  { return x < W / 2 ? 'R' : 'L'; }
-
-/* ---- 当たり判定 ---- */
-const HIT_DIST = PAW_W / 2 + CUP_W / 2 - HIT_MARGIN;
-function hitAt(tx) { return Math.abs(tx - P.x) < HIT_DIST; }                    // 肉球が tx に着地したとき
-function hitSweep(x0, x1) {                                                     // 肉球が x0→x1 を横切ったとき
-  const a = Math.min(x0, x1) - HIT_DIST, b = Math.max(x0, x1) + HIT_DIST;
-  return P.x > a && P.x < b;
-}
-
-/* ---- 攻撃パターン ---- */
-function diff() {
-  let d = STAGE.difficulty[0];
-  for (const e of STAGE.difficulty) if (t >= e.from) d = e;
-  let interval = d.interval;
-  const lastFrom = STAGE.difficulty[STAGE.difficulty.length - 1].from;
-  if (t >= lastFrom) {
-    const k = clamp((t - lastFrom) / (STAGE.clearTime - lastFrom), 0, 1);
-    interval = interval + (STAGE.minInterval - interval) * k;
-  }
-  return { ...d, interval };
-}
-const ST = STAGE.strikeTime, RT = STAGE.retractTime;
-
-function attackA(d) {   // 直突き：どちらかの肩からコップへ
-  const ctx = {};
-  return [
-    { d: d.tele, run: (p, c) => { if (c.x == null) { c.x = P.x; c.s = rnd(['L','R']); } teleRun(p, d.tele, c.x); } },
-    { d: ST,     run: (p, c) => { armTo(c.s, c.x, cupLine, p); sfx('strike', p); if (p > 0.85 && hitAt(c.x)) die(SH[c.s].x < P.x ? 1 : -1); } },
-    { d: RT,     run: (p, c) => { armTo(c.s, c.x, cupLine, 1 - p); catLook(c.x, false); } },
-  ].map(s => ({ ...s, ctx }));
-}
-function attackB(d) {   // フェイント：浅く出して引っ込め、その後の位置に本命
-  const ctx = {};
-  return [
-    { d: d.tele, run: (p, c) => { if (c.x == null) { c.x = P.x; c.s = rnd(['L','R']); } teleRun(p, d.tele, c.x); } },
-    { d: ST,     run: (p, c) => { armTo(c.s, c.x, cupLine, 0.06 + p * 0.30); } },
-    { d: 0.12,   run: (p, c) => { armTo(c.s, c.x, cupLine, 0.36 - p * 0.30); catLook(c.x, false); } },
-    { d: 0.30,   run: (p, c) => { hideArms(); } },
-    { d: 0.15,   run: (p, c) => { if (c.x2 == null) c.x2 = P.x; teleRun(p, 0.15, c.x2); } },
-    { d: ST,     run: (p, c) => { armTo(c.s, c.x2, cupLine, p); sfx('strike', p); if (p > 0.85 && hitAt(c.x2)) die(SH[c.s].x < P.x ? 1 : -1); } },
-    { d: RT,     run: (p, c) => { armTo(c.s, c.x2, cupLine, 1 - p); catLook(c.x2, false); } },
-  ].map(s => ({ ...s, ctx }));
-}
-function attackC(d) {   // 薙ぎ払い：遠い側の肩から斜めに伸ばし、肩の真下まで払う
-  const ctx = {};
-  const farX = side => side === 'L' ? W - 30 : 30;
-  return [
-    { d: d.tele, run: (p, c) => { if (!c.s) { c.s = farSide(P.x); c.x0 = farX(c.s); c.px = c.x0; } teleRun(p, d.tele, c.x0); } },
-    { d: 0.18,   run: (p, c) => { armTo(c.s, c.x0, cupLine, p); sfx('strike', p); if (p > 0.85 && hitAt(c.x0)) die(c.s === 'L' ? 1 : -1); } },
-    { d: 0.40,   run: (p, c) => { const tx = c.x0 + (SH[c.s].x - c.x0) * p; armTo(c.s, tx, cupLine, 1);
-                                  if (hitSweep(c.px, tx)) die(c.s === 'L' ? -1 : 1); c.px = tx; } },
-    { d: RT,     run: (p, c) => { armTo(c.s, SH[c.s].x, cupLine, 1 - p); catRest(); } },
-  ].map(s => ({ ...s, ctx }));
-}
-function attackD(d) {   // 両手：隙間はコップ1.6個分、今の位置から少しズレる
-  const ctx = {};
-  return [
-    { d: d.tele, run: (p, c) => {
-        if (c.x1 == null) {
-          const gap = CUP_W * 1.6;
-          const gc = clamp(P.x + (Math.random() * 2 - 1) * CUP_W * 1.3, gap / 2 + PAW_W / 2, W - gap / 2 - PAW_W / 2);
-          c.x1 = gc - gap / 2 - PAW_W / 2; c.x2 = gc + gap / 2 + PAW_W / 2;
-        }
-        teleRun(p, d.tele, P.x); } },
-    { d: ST,     run: (p, c) => { armTo('L', c.x1, cupLine, p); armTo('R', c.x2, cupLine, p); sfx('strike', p);
-        if (p > 0.85 && (hitAt(c.x1) || hitAt(c.x2))) die(hitAt(c.x1) ? 1 : -1); } },
-    { d: RT,     run: (p, c) => { armTo('L', c.x1, cupLine, 1 - p); armTo('R', c.x2, cupLine, 1 - p); catRest(); } },
-  ].map(s => ({ ...s, ctx }));
-}
-const ATTACKS = { A: attackA, B: attackB, C: attackC, D: attackD };
-
-// 攻撃の選び方：新しく解禁された攻撃は最初の1回を必ず出す。以降は新しい順に重み 1.6 / 1.2 / 1.0。同じ攻撃は3連続させない
-let lastTypes = [], seenTypes = new Set();
-function pickType(types) {
-  const fresh = types.filter(t => !seenTypes.has(t));
-  if (fresh.length) return fresh[0];
-  const n = types.length;
-  const w = types.map((t, i) => (i === n - 1 ? 1.6 : i === n - 2 ? 1.2 : 1.0));
-  if (lastTypes.length >= 2 && lastTypes[0] === lastTypes[1]) { const k = types.indexOf(lastTypes[0]); if (k >= 0 && n > 1) w[k] = 0; }
-  let r = Math.random() * w.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < n; i++) { r -= w[i]; if (r <= 0) return types[i]; }
-  return types[n - 1];
-}
-function startAttack() {
-  const d = diff();
-  const type = pickType(d.types);
-  seenTypes.add(type); lastTypes = [type, lastTypes[0]];
-  cur = { steps: ATTACKS[type](d), i: 0, st: 0 };
-  sfx('tele');
-}
-function stepAttack(dt) {
-  if (!cur) return;
-  const s = cur.steps[cur.i];
-  cur.st += dt;
-  s.run(clamp(cur.st / s.d, 0, 1), s.ctx);
-  if (state !== 'play') return;
-  if (cur.st >= s.d) {
-    cur.i++; cur.st = 0;
-    if (cur.i >= cur.steps.length) { cur = null; hideArms(); catRest(); wait = diff().interval; }
-  }
-}
-
-/* ---- 進行 ---- */
-// デバッグ用：?t=55 で55秒から開始。この場合はベスト更新とシェアを止める（練習モード）
-const _tp = parseFloat(new URLSearchParams(location.search).get('t'));
-const START_T = Number.isFinite(_tp) ? clamp(_tp, 0, STAGE.clearTime - 1) : 0;
-const PRACTICE = START_T > 0;
-function start() {
-  state = 'play'; t = START_T; cur = null; wait = 0.8; lastTypes = []; seenTypes = new Set();
-  overlay.classList.remove('show');
-  catEl.className = ''; cupEl.getAnimations().forEach(a => a.cancel()); cupEl.style.visibility = '';
-  hideArms(); catRest();
-  P.x = W / 2; lookX = W / 2; drawCup();
-  last = performance.now();
-  requestAnimationFrame(loop);
-}
-function loop(now) {
-  if (state !== 'play') return;
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  t += dt;
-  scoreEl.innerHTML = t.toFixed(1) + '<small>s</small>';
-  if (t >= STAGE.clearTime) { clear(); return; }
-  if (cur) stepAttack(dt);
-  else { catFollow(dt); wait -= dt; if (wait <= 0) startAttack(); }   // 待機中は少し遅れてコップを目で追う
-  requestAnimationFrame(loop);
-}
-function titleFor(sec) { return STAGE.titles.find(x => sec < x.under).name; }
-function saveBest(sec) { if (PRACTICE) return; if (sec > best) { best = sec; localStorage.setItem(STAGE.storageKey, String(best)); } showBest(); }
-
-function die(dir) {
-  if (state !== 'play') return;
-  state = 'dead';
-  const sec = t;
-  catCalm();
-  const x0 = P.x - CUP_W / 2;
-  const r = a => `rotate(${dir * a}deg)`;
-  tone(90, 0.1, 'triangle', 0.15);
-  cupEl.animate([
-    { transform: `translate(${x0}px, ${cupY}px) ${r(0)} scale(1)`, offset: 0 },
-    { transform: `translate(${x0 + dir * 10}px, ${cupY - 4}px) ${r(28)} scale(1.02)`, offset: 0.3, easing: 'ease-out' },
-    { transform: `translate(${x0 + dir * 26}px, ${H - 30}px) ${r(95)} scale(1.15)`, offset: 1, easing: 'cubic-bezier(.5,0,1,1)' },
-  ], { duration: 520, fill: 'forwards' });
-  setTimeout(() => {
-    cupEl.style.visibility = 'hidden';
-    shatter(P.x + dir * 26, H - 16);
-    sfx('crash'); flash.textContent = 'パリン'; flash.className = 'on';
-  }, 520);
-  setTimeout(() => {
-    hideArms(); catRest(); catEl.classList.add('big');
-    const line = (sec >= 45 && Math.random() < 0.5) ? rnd(STAGE.lateDeathLines) : rnd(STAGE.deathLines);
-    result(`コップは<br><b>${sec.toFixed(1)}</b>秒 生き延びた`, line, titleFor(sec), sec);
-  }, 1200);
-  saveBest(sec);
-}
-function shatter(x, y) {
-  for (let i = 0; i < 14; i++) {
-    const d = document.createElement('div');
-    d.className = 'shard';
-    const size = 6 + Math.random() * 10;
-    d.style.width = size + 'px'; d.style.height = size + 'px';
-    d.style.clipPath = Math.random() < 0.5 ? 'polygon(0 0,100% 30%,40% 100%)' : 'polygon(20% 0,100% 0,60% 100%,0 70%)';
-    game.appendChild(d);
-    const ang = -Math.PI * (0.15 + Math.random() * 0.7);
-    const v = 90 + Math.random() * 160;
-    const vx = Math.cos(ang) * v, vy = Math.sin(ang) * v;
-    const rot = (Math.random() * 2 - 1) * 720;
-    const frames = [];
-    for (let k = 0; k <= 10; k++) {
-      const tt = k / 10 * 0.75;
-      const px = x + vx * tt, py = y + vy * tt + 420 * tt * tt;
-      frames.push({ transform: `translate(${px}px, ${Math.min(py, H - 12)}px) rotate(${rot * tt}deg)`, opacity: k < 8 ? 1 : (10 - k) / 2, offset: k / 10 });
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+  <title>コップ、逃げる。</title>
+  <meta name="description" content="机の上のコップになって、猫の手から60秒逃げ切るだけのゲーム。逃げる。シリーズ 01">
+  <meta property="og:title" content="コップ、逃げる。">
+  <meta property="og:description" content="机の上のコップになって、猫の手から60秒逃げ切るだけのゲーム。">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://mopsworks.jp/games/nigeru/cup/img/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#f7ecd2">
+  <style>
+    :root {
+      --bg: #f7ecd2;
+      --table: #c07f45;
+      --edge: #8e5628;
+      --floor: #a9713b;
+      --fur: #4c403a;
+      --line: #241b15;
+      --ink: #2b2118;
+      --accent: #d9483f;
     }
-    d.animate(frames, { duration: 750, fill: 'forwards' });
-    setTimeout(() => d.remove(), 800);
-  }
-}
-function clear() {
-  state = 'clear';
-  const sec = STAGE.clearTime;
-  sfx('clear');
-  hideArms(); catCalm(); catEl.classList.add('sleep');
-  setTimeout(() => {
-    catEl.classList.add('big');
-    result(`猫は飽きて寝た。<br><b>${sec}</b>秒 逃げ切った`, rnd(STAGE.clearLines), titleFor(sec), sec);
-  }, 900);
-  saveBest(sec);
-}
-function result(bigHtml, line, title, sec) {
-  bigEl.innerHTML = bigHtml; lineEl.textContent = '「' + line + '」'; subEl.textContent = title;
-  btns.innerHTML = '';
-  const again = document.createElement('button'); again.textContent = 'もう一回';
-  again.onclick = () => { flash.className = ''; start(); };
-  const share = document.createElement('button'); share.className = 'ghost'; share.textContent = 'Xで自慢する';
-  share.onclick = () => {
-    const text = state === 'clear'
-      ? `【コップ、逃げる。】60秒逃げ切った🥛🐱 猫は飽きて寝た。称号：机の主`
-      : `【コップ、逃げる。】コップは${sec.toFixed(1)}秒生き延びた🥛🐱「${line}」`;
-    window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text + '\n' + location.href), '_blank');
-  };
-  if (PRACTICE) { subEl.textContent = '練習モード（記録なし）'; btns.append(again); overlay.classList.add('show'); return; }
-  btns.append(again, share);
-  overlay.classList.add('show');
-}
 
-/* ---- 入力 ---- */
-let drag = null;
-game.addEventListener('pointerdown', e => {
-  if (state !== 'play') return;
-  e.preventDefault();
-  drag = { sx: e.clientX, px: P.x }; game.setPointerCapture(e.pointerId);
-});
-game.addEventListener('dragstart', e => e.preventDefault());
-game.addEventListener('pointermove', e => {
-  if (!drag || state !== 'play') return;
-  P.x = clamp(drag.px + (e.clientX - drag.sx) * 1.15, CUP_W / 2, W - CUP_W / 2); drawCup();
-});
-game.addEventListener('pointerup', () => drag = null);
-game.addEventListener('pointercancel', () => drag = null);
-const keys = {};
-addEventListener('keydown', e => { keys[e.key] = true; if (state === 'title' && (e.key === ' ' || e.key === 'Enter')) $('#btnMain').click(); });
-addEventListener('keyup', e => keys[e.key] = false);
-setInterval(() => {
-  if (state !== 'play') return;
-  const v = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
-  if (v) { P.x = clamp(P.x + v * 9, CUP_W / 2, W - CUP_W / 2); drawCup(); }
-}, 16);
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
 
-/* ---- 効果音（WebAudio合成。「にゃっ」は録音があれば差し替え） ---- */
-let AC = null;
-function audioInit() { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); loadNya(); }
-function tone(f, dur, type = 'sine', vol = 0.15) {
-  if (!AC) return;
-  const o = AC.createOscillator(), g = AC.createGain();
-  o.type = type; o.frequency.value = f; g.gain.value = vol;
-  g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
-  o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
-}
-function noise(dur, vol = 0.25) {
-  if (!AC) return;
-  const b = AC.createBuffer(1, AC.sampleRate * dur, AC.sampleRate), d = b.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
-  const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter();
-  f.type = 'highpass'; f.frequency.value = 2500; g.gain.value = vol;
-  s.buffer = b; s.connect(f).connect(g).connect(AC.destination); s.start();
-}
-let nyaSample = null;
-function loadNya() {                        // 録音した「にゃっ」（img/nya.mp3）。読めなければ合成音のまま
-  if (nyaSample || !AC || loadNya.busy) return; loadNya.busy = true;
-  fetch('img/nya.mp3').then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b)).then(b => nyaSample = b).catch(() => {});
-}
-function nya() {
-  if (!AC) return;
-  if (nyaSample) { const s = AC.createBufferSource(), g = AC.createGain(); g.gain.value = 0.9; s.buffer = nyaSample; s.connect(g).connect(AC.destination); s.start(); return; }
-  const now = AC.currentTime, dur = 0.22;
-  const o = AC.createOscillator(); o.type = 'sawtooth';
-  o.frequency.setValueAtTime(640, now);
-  o.frequency.exponentialRampToValueAtTime(760, now + 0.05);
-  o.frequency.exponentialRampToValueAtTime(430, now + dur);
-  const vib = AC.createOscillator(), vg = AC.createGain();
-  vib.frequency.value = 28; vg.gain.value = 18; vib.connect(vg).connect(o.frequency);
-  const f1 = AC.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 3;
-  f1.frequency.setValueAtTime(1900, now); f1.frequency.exponentialRampToValueAtTime(1000, now + dur);
-  const f2 = AC.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 3200;
-  const g = AC.createGain();
-  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.35, now + 0.02);
-  g.gain.setValueAtTime(0.35, now + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-  o.connect(f1).connect(f2).connect(g).connect(AC.destination);
-  o.start(now); vib.start(now); o.stop(now + dur); vib.stop(now + dur);
-}
-const sfxOnce = {};
-function sfx(kind, p) {
-  if (kind === 'tele') { sfxOnce.strike = false; }   // 予告音は鳴らさない（目だけで読む）
-  if (kind === 'strike' && !sfxOnce.strike && p > 0.1) { sfxOnce.strike = true; tone(120, 0.12, 'triangle', 0.2); }
-  if (kind === 'nya') nya();
-  if (kind === 'crash') { noise(0.35); tone(1800, 0.25, 'sine', 0.08); }
-  if (kind === 'clear') { [523, 659, 784].forEach((f, i) => setTimeout(() => tone(f, 0.4, 'sine', 0.12), i * 120)); }
-}
+    img {
+      -webkit-user-drag: none;
+      user-drag: none;
+      pointer-events: none
+    }
 
-/* ---- 起動 ---- */
-$('#btnMain').onclick = () => { audioInit(); start(); };
-game.addEventListener('pointerdown', audioInit, { once: true });
-addEventListener('resize', layout);
-layout(); showBest(); catRest();
-</script>
+    /* 画像の上からドラッグを始めてもブラウザの画像ドラッグにならない */
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none
+    }
+
+    #game {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+      height: 100%;
+      margin: 0 auto;
+      overflow: hidden
+    }
+
+    #score {
+      position: absolute;
+      top: 16px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 46px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.02em;
+      z-index: 1
+    }
+
+    #score small {
+      font-size: 18px;
+      font-weight: 500;
+      margin-left: 3px
+    }
+
+    #best {
+      position: absolute;
+      top: 70px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 14px;
+      opacity: .6;
+      z-index: 1
+    }
+
+    /* ---- 猫：顔はPNG、瞳孔と寝顔だけSVGを重ねる ---- */
+    #cat {
+      position: absolute;
+      top: var(--catTop, 92px);
+      left: 50%;
+      width: 240px;
+      aspect-ratio: 860/565;
+      transform: translateX(-50%);
+      transition: transform .45s cubic-bezier(.2, .8, .2, 1), top .45s;
+      z-index: 0
+    }
+
+    #cat.big {
+      transform: translateX(-50%) scale(1.9);
+      top: 170px;
+      z-index: 6
+    }
+
+    #cat img,
+    #cat svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block
+    }
+
+    #cat #faceY {
+      display: none
+    }
+
+    #cat.nya #faceN {
+      display: none
+    }
+
+    #cat.nya #faceY {
+      display: block
+    }
+
+    .pupil {
+      fill: #161210;
+      transition: rx .1s, cx .15s
+    }
+
+    #cat.aim .pupil {
+      transition: rx .1s
+    }
+
+    .sleepEye {
+      fill: #4a3e38;
+      stroke: #4a3e38;
+      stroke-width: 30;
+      stroke-linejoin: round;
+      display: none
+    }
+
+    /* 目の輪郭ごと毛色で塗りつぶす（輪郭の外側まで覆う） */
+    .shut {
+      fill: none;
+      stroke: #241b15;
+      stroke-width: 8;
+      stroke-linecap: round;
+      display: none
+    }
+
+    #cat.sleep .pupil {
+      display: none
+    }
+
+    #cat.sleep .sleepEye,
+    #cat.sleep .shut {
+      display: block
+    }
+
+    .zzz {
+      position: absolute;
+      top: -6px;
+      right: 0;
+      font-size: 32px;
+      display: none
+    }
+
+    #cat.sleep .zzz {
+      display: block
+    }
+
+    /* ---- 机・床・コップ ---- */
+    #table {
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+      line-height: 0
+    }
+
+    #table img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: top center
+    }
+
+    #cup {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 46px;
+      height: auto;
+      will-change: transform;
+      z-index: 2
+    }
+
+    #props {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none
+    }
+
+    .prop {
+      position: absolute;
+      line-height: 1;
+      transform: translate(-50%, -50%);
+      filter: drop-shadow(0 2px 1px rgba(60, 30, 10, .25))
+    }
+
+    /* ---- 腕：肩（机の縁）を軸に回転し、伸びる ---- */
+    .armv {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 56px;
+      height: 0;
+      transform-origin: 28px 0;
+      display: none;
+      will-change: transform, height;
+      z-index: 3
+    }
+
+    .armv .bar {
+      position: absolute;
+      left: -1.5px;
+      top: 0;
+      width: 60px;
+      height: 100%;
+      background: #4d3f38;
+      border: 3px solid #251c16;
+      border-bottom: 0;
+      border-radius: 30px 30px 0 0;
+      min-height: 22px
+    }
+
+    .armv .tip {
+      position: absolute;
+      left: -9px;
+      bottom: -40px;
+      width: 74px;
+      display: block;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
+      mask-image: linear-gradient(to bottom, transparent 0, #000 22px)
+    }
+
+    /* 先端の上端を溶かして腕と繋ぐ */
+
+    .shard {
+      position: absolute;
+      left: 0;
+      top: 0;
+      background: #dfeef5;
+      border: 1px solid #9cc3d6;
+      z-index: 4;
+      pointer-events: none;
+      will-change: transform
+    }
+
+    /* ---- オーバーレイ ---- */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 28px 48px;
+      text-align: center;
+      background: rgba(247, 236, 210, .9);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s
+    }
+
+    #overlay.show {
+      opacity: 1;
+      pointer-events: auto
+    }
+
+    #big {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.25
+    }
+
+    #big b {
+      font-size: 60px;
+      font-variant-numeric: tabular-nums
+    }
+
+    #line {
+      font-size: 21px;
+      margin: 14px 0 6px;
+      min-height: 1.4em
+    }
+
+    #sub {
+      font-size: 15px;
+      opacity: .7;
+      min-height: 1.3em
+    }
+
+    #btns {
+      display: flex;
+      gap: 10px;
+      margin-top: 22px;
+      width: 100%
+    }
+
+    button {
+      flex: 1;
+      font: inherit;
+      font-size: 17px;
+      padding: 14px 8px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--ink);
+      color: #fff;
+      cursor: pointer
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 2px solid var(--ink)
+    }
+
+    button:active {
+      transform: translateY(1px)
+    }
+
+    #flash {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 40%;
+      text-align: center;
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--accent);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 7
+    }
+
+    #flash.on {
+      animation: pop .7s ease-out forwards
+    }
+
+    @keyframes pop {
+      0% {
+        opacity: 0;
+        transform: scale(.6)
+      }
+
+      20% {
+        opacity: 1;
+        transform: scale(1.1)
+      }
+
+      100% {
+        opacity: 0;
+        transform: scale(1)
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="game">
+    <div id="score">0.0<small>s</small></div>
+    <div id="best"></div>
+
+    <div id="cat">
+      <img id="faceN" src="img/face_closed.png" alt="">
+      <img id="faceY" src="img/face_open.png" alt="">
+      <svg viewBox="0 0 860 565" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="clipL">
+            <path d="M207.3 322.2 A109.3 109.3 0 0 1 380.3 322.2 A109.3 109.3 0 0 1 207.3 322.2 Z" />
+          </clipPath>
+          <clipPath id="clipR">
+            <path d="M502.0 319.2 A107.0 107.0 0 0 1 672.0 319.2 A107.0 107.0 0 0 1 502.0 319.2 Z" />
+          </clipPath>
+        </defs>
+        <ellipse class="pupil" id="pL" clip-path="url(#clipL)" cx="293.8" cy="322.2" rx="7" ry="36" />
+        <ellipse class="pupil" id="pR" clip-path="url(#clipR)" cx="587.0" cy="319.2" rx="7" ry="36" />
+        <path class="sleepEye" d="M207.3 322.2 A109.3 109.3 0 0 1 380.3 322.2 A109.3 109.3 0 0 1 207.3 322.2 Z" />
+        <path class="sleepEye" d="M502.0 319.2 A107.0 107.0 0 0 1 672.0 319.2 A107.0 107.0 0 0 1 502.0 319.2 Z" />
+        <path class="shut" d="M219 322 Q 293.8 344 368 322" />
+        <path class="shut" d="M514 319 Q 587.0 341 660 319" />
+      </svg>
+      <div class="zzz">💤</div>
+    </div>
+
+    <div class="armv" id="armL">
+      <div class="bar"></div><img class="tip" src="img/paw.png" alt="">
+    </div>
+    <div class="armv" id="armR">
+      <div class="bar"></div><img class="tip" src="img/paw.png" alt="">
+    </div>
+
+    <div id="table"><img src="img/table.png" alt=""></div>
+    <div id="props"></div>
+    <img id="cup" src="img/cup.png" alt="">
+    <div id="flash"></div>
+
+    <div id="overlay" class="show">
+      <div id="big">コップ、逃げる。<br><span style="font-size:15px;font-weight:500;opacity:.7">逃げる。シリーズ 01</span></div>
+      <div id="line">机の上のコップになって、猫から逃げる。</div>
+      <div id="sub">ドラッグで左右に動く。60秒逃げ切ったら勝ち。</div>
+      <div id="btns"><button id="btnMain">はじめる</button></div>
+    </div>
+  </div>
+
+  <script>
+    const PROP = { "salt": "img/prop_salt.png", "spoon": "img/prop_spoon.png", "receipt": "img/prop_receipt.png", "bread": "img/prop_bread.png", "hairband": "img/prop_hairband.png" };
+    /* =========================================================
+       ステージ設定
+       ========================================================= */
+    const STAGE = {
+      id: 'cat',
+      title: 'コップ、逃げる。',
+      clearTime: 60,
+      difficulty: [
+        { from: 0, interval: 1.6, tele: 0.60, types: ['A'] },
+        { from: 10, interval: 1.3, tele: 0.50, types: ['A', 'B'] },
+        { from: 25, interval: 1.0, tele: 0.40, types: ['A', 'B', 'C'] },
+        { from: 45, interval: 0.8, tele: 0.30, types: ['A', 'B', 'C', 'D'] },
+      ],
+      minInterval: 0.5,
+      strikeTime: 0.15,
+      retractTime: 0.20,
+      nyaLead: 0.12,
+      pupil: { thin: 7, narrow: 4, wide: 26, look: 36 },   // 瞳孔：通常／狙い中（細める）／攻撃直前（丸く）／左右に動く量（画像座標）
+      deathLines: [
+        '見てた？', '今のは事故', '机に置く方が悪い', '反省はしてる。ちょっと', 'ほな',
+        '手が滑った。滑らせた', '次はもっと早いで', '悪いとは思ってる。落とすけど',
+        'ごめんて。ほんまに。ちょっとだけ', 'ごめんて。ほんまに。ちょっとだけ',
+        '今日はこのへんで', '音、聞いた？',
+      ],
+      lateDeathLines: ['痛かった？…そっか'],
+      clearLines: ['ようやった。ちょっと本気出した', '最後まで逃げたコップ、あんまりおらん'],
+      titles: [
+        { under: 5, name: '称号：置き物' },
+        { under: 15, name: '称号：揺れただけ' },
+        { under: 30, name: '称号：逃げ足のコップ' },
+        { under: 60, name: '称号：不屈のコップ' },
+        { under: 1e9, name: '称号：机の主' },
+      ],
+      // 机の手前（コップが来ない場所）の小物。当たり判定なし。x,yは画面比率、絵はPNGに差し替え可
+      props: [
+        { src: PROP.salt, x: 0.13, y: 0.86, size: 38 },
+        { src: PROP.spoon, x: 0.85, y: 0.84, size: 54, rotate: -20 },
+        { src: PROP.bread, x: 0.70, y: 0.93, size: 56 },
+        { src: PROP.receipt, x: 0.34, y: 0.93, size: 46, rotate: 12 },
+      ],
+      storageKey: 'nekocup_best',
+    };
+
+    /* ================= エンジン ================= */
+    const $ = s => document.querySelector(s);
+    const game = $('#game'), catEl = $('#cat'), cupEl = $('#cup'), tableEl = $('#table');
+    const scoreEl = $('#score'), bestEl = $('#best'), overlay = $('#overlay');
+    const bigEl = $('#big'), lineEl = $('#line'), subEl = $('#sub'), btns = $('#btns'), flash = $('#flash');
+    const pL = $('#pL'), pR = $('#pR');
+    const EYE = { l: 293.8, r: 587.0 };
+    const armL = $('#armL'), armR = $('#armR');
+    const SH = { L: { x: 0, y: 0 }, R: { x: 0, y: 0 } };   // 肩の位置
+
+    const CUP_W = 46, CUP_H = 47, PAW_W = 60;
+    const HIT_MARGIN = 18;
+    let W = 0, H = 0, tableY = 0, cupY = 0, cupLine = 0;
+    let state = 'title';
+    let t = 0, last = 0;
+    let P = { x: 0 };
+    let cur = null, wait = 0;
+    let best = +(localStorage.getItem(STAGE.storageKey) || 0);
+    const rnd = a => a[Math.floor(Math.random() * a.length)];
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    function layout() {
+      W = game.clientWidth; H = game.clientHeight;
+      // 机の奥端 44%。猫は顎が机に隠れる位置（口は見える）。コップの底 73%。その下は親指エリア
+      const tableTop = Math.round(H * 0.44);
+      tableEl.style.top = tableTop + 'px'; tableEl.style.height = (H - tableTop) + 'px';   // 縦長端末では横を切って下端まで届かせる
+      const catH = catEl.offsetHeight, catW = catEl.offsetWidth;
+      const catTop = Math.round(tableTop - catH * 0.80);
+      catEl.style.setProperty('--catTop', catTop + 'px');
+      const cupBase = Math.round(H * 0.73);
+      cupY = cupBase - CUP_H;
+      cupLine = cupBase - CUP_H * 0.45;           // 肉球の中心が来る高さ（コップの胴体）
+      tableY = cupBase;
+      // 肩：顔の両脇、机の縁のすぐ下
+      SH.L = { x: Math.round(W / 2 - catW * 0.38), y: tableTop + 10 };
+      SH.R = { x: Math.round(W / 2 + catW * 0.38), y: tableTop + 10 };
+      P.x = clamp(P.x || W / 2, CUP_W / 2, W - CUP_W / 2);
+      drawProps();
+      drawCup();
+    }
+    function drawProps() {
+      const box = document.getElementById('props'); box.innerHTML = '';
+      for (const p of STAGE.props) {
+        const el = document.createElement('div'); el.className = 'prop';
+        if (p.src) { const im = document.createElement('img'); im.src = p.src; im.style.width = p.size + 'px'; el.appendChild(im); }
+        else { el.textContent = p.emoji; el.style.fontSize = p.size + 'px'; }
+        el.style.left = (p.x * W) + 'px'; el.style.top = (p.y * H) + 'px';
+        if (p.rotate) el.style.transform += ` rotate(${p.rotate}deg)`;
+        box.appendChild(el);
+      }
+    }
+    function drawCup() { cupEl.style.transform = `translate(${P.x - CUP_W / 2}px, ${cupY}px)`; }
+    function showBest() { bestEl.textContent = best ? `ベスト ${best.toFixed(1)}s` : ''; }
+
+    /* ---- 猫の目・口 ---- */
+    let nyaDone = false, lookX = 0;
+    function catLook(x, ready) {
+      const dx = clamp((x - W / 2) / (W / 2), -1, 1) * STAGE.pupil.look;
+      pL.setAttribute('cx', EYE.l + dx); pR.setAttribute('cx', EYE.r + dx);
+      catEl.classList.toggle('aim', !!ready);      // 狙い中は瞳孔の移動をアニメさせず即追従
+      if (!ready) catCalm();
+    }
+    function catFollow(dt) {                        // 待機中：少し遅れてコップを追う
+      lookX += (P.x - lookX) * Math.min(1, dt * 3.5);
+      catLook(lookX, false);
+    }
+    function catNya() {
+      pL.setAttribute('rx', STAGE.pupil.wide); pR.setAttribute('rx', STAGE.pupil.wide);
+      catEl.classList.add('nya');
+      if (!nyaDone) { nyaDone = true; sfx('nya'); }
+    }
+    function catCalm() {
+      pL.setAttribute('rx', STAGE.pupil.thin); pR.setAttribute('rx', STAGE.pupil.thin);
+      catEl.classList.remove('nya'); nyaDone = false;
+    }
+    function catRest() { catLook(W / 2, false); }
+    function teleRun(p, d, x) {
+      catLook(x, true);
+      if (p >= 1 - STAGE.nyaLead / d) catNya();
+      else if (!catEl.classList.contains('nya')) { pL.setAttribute('rx', STAGE.pupil.narrow); pR.setAttribute('rx', STAGE.pupil.narrow); }   // 狙い中は少し細める
+    }
+
+    /* ---- 腕：肩(side)から (tx,ty) へ、depth(0-1)だけ伸びる ---- */
+    function armEl(side) { return side === 'L' ? armL : armR; }
+    function armTo(side, tx, ty, depth) {
+      const el = armEl(side), sh = SH[side];
+      const dx = tx - sh.x, dy = ty - sh.y, L = Math.hypot(dx, dy);
+      const deg = -Math.atan2(dx, dy) * 180 / Math.PI;
+      el.style.display = 'block';
+      el.style.left = (sh.x - 28) + 'px'; el.style.top = sh.y + 'px';
+      el.style.transform = `rotate(${deg}deg)`;
+      el.style.height = Math.max(0, depth * L - 15) + 'px';     // 先端の肉球の中心が (tx,ty) に来る
+    }
+    function hideArms() { armL.style.display = 'none'; armR.style.display = 'none'; }
+    function nearSide(x) { return x < W / 2 ? 'L' : 'R'; }
+    function farSide(x) { return x < W / 2 ? 'R' : 'L'; }
+
+    /* ---- 当たり判定 ---- */
+    const HIT_DIST = PAW_W / 2 + CUP_W / 2 - HIT_MARGIN;
+    function hitAt(tx) { return Math.abs(tx - P.x) < HIT_DIST; }                    // 肉球が tx に着地したとき
+    function hitSweep(x0, x1) {                                                     // 肉球が x0→x1 を横切ったとき
+      const a = Math.min(x0, x1) - HIT_DIST, b = Math.max(x0, x1) + HIT_DIST;
+      return P.x > a && P.x < b;
+    }
+
+    /* ---- 攻撃パターン ---- */
+    function diff() {
+      let d = STAGE.difficulty[0];
+      for (const e of STAGE.difficulty) if (t >= e.from) d = e;
+      let interval = d.interval;
+      const lastFrom = STAGE.difficulty[STAGE.difficulty.length - 1].from;
+      if (t >= lastFrom) {
+        const k = clamp((t - lastFrom) / (STAGE.clearTime - lastFrom), 0, 1);
+        interval = interval + (STAGE.minInterval - interval) * k;
+      }
+      return { ...d, interval };
+    }
+    const ST = STAGE.strikeTime, RT = STAGE.retractTime;
+
+    function attackA(d) {   // 直突き：どちらかの肩からコップへ
+      const ctx = {};
+      return [
+        { d: d.tele, run: (p, c) => { if (c.x == null) { c.x = P.x; c.s = rnd(['L', 'R']); } teleRun(p, d.tele, c.x); } },
+        { d: ST, run: (p, c) => { armTo(c.s, c.x, cupLine, p); sfx('strike', p); if (p > 0.85 && hitAt(c.x)) die(SH[c.s].x < P.x ? 1 : -1); } },
+        { d: RT, run: (p, c) => { armTo(c.s, c.x, cupLine, 1 - p); catLook(c.x, false); } },
+      ].map(s => ({ ...s, ctx }));
+    }
+    function attackB(d) {   // フェイント：浅く出して引っ込め、その後の位置に本命
+      const ctx = {};
+      return [
+        { d: d.tele, run: (p, c) => { if (c.x == null) { c.x = P.x; c.s = rnd(['L', 'R']); } teleRun(p, d.tele, c.x); } },
+        { d: ST, run: (p, c) => { armTo(c.s, c.x, cupLine, 0.06 + p * 0.30); } },
+        { d: 0.12, run: (p, c) => { armTo(c.s, c.x, cupLine, 0.36 - p * 0.30); catLook(c.x, false); } },
+        { d: 0.30, run: (p, c) => { hideArms(); } },
+        { d: 0.15, run: (p, c) => { if (c.x2 == null) c.x2 = P.x; teleRun(p, 0.15, c.x2); } },
+        { d: ST, run: (p, c) => { armTo(c.s, c.x2, cupLine, p); sfx('strike', p); if (p > 0.85 && hitAt(c.x2)) die(SH[c.s].x < P.x ? 1 : -1); } },
+        { d: RT, run: (p, c) => { armTo(c.s, c.x2, cupLine, 1 - p); catLook(c.x2, false); } },
+      ].map(s => ({ ...s, ctx }));
+    }
+    function attackC(d) {   // 薙ぎ払い：遠い側の肩から斜めに伸ばし、肩の真下まで払う
+      const ctx = {};
+      const farX = side => side === 'L' ? W - 30 : 30;
+      return [
+        { d: d.tele, run: (p, c) => { if (!c.s) { c.s = farSide(P.x); c.x0 = farX(c.s); c.px = c.x0; } teleRun(p, d.tele, c.x0); } },
+        { d: 0.18, run: (p, c) => { armTo(c.s, c.x0, cupLine, p); sfx('strike', p); if (p > 0.85 && hitAt(c.x0)) die(c.s === 'L' ? 1 : -1); } },
+        {
+          d: 0.40, run: (p, c) => {
+            const tx = c.x0 + (SH[c.s].x - c.x0) * p; armTo(c.s, tx, cupLine, 1);
+            if (hitSweep(c.px, tx)) die(c.s === 'L' ? -1 : 1); c.px = tx;
+          }
+        },
+        { d: RT, run: (p, c) => { armTo(c.s, SH[c.s].x, cupLine, 1 - p); catRest(); } },
+      ].map(s => ({ ...s, ctx }));
+    }
+    function attackD(d) {   // 両手：隙間はコップ1.6個分、今の位置から少しズレる
+      const ctx = {};
+      return [
+        {
+          d: d.tele, run: (p, c) => {
+            if (c.x1 == null) {
+              const gap = CUP_W * 1.6;
+              const gc = clamp(P.x + (Math.random() * 2 - 1) * CUP_W * 1.3, gap / 2 + PAW_W / 2, W - gap / 2 - PAW_W / 2);
+              c.x1 = gc - gap / 2 - PAW_W / 2; c.x2 = gc + gap / 2 + PAW_W / 2;
+            }
+            teleRun(p, d.tele, P.x);
+          }
+        },
+        {
+          d: ST, run: (p, c) => {
+            armTo('L', c.x1, cupLine, p); armTo('R', c.x2, cupLine, p); sfx('strike', p);
+            if (p > 0.85 && (hitAt(c.x1) || hitAt(c.x2))) die(hitAt(c.x1) ? 1 : -1);
+          }
+        },
+        { d: RT, run: (p, c) => { armTo('L', c.x1, cupLine, 1 - p); armTo('R', c.x2, cupLine, 1 - p); catRest(); } },
+      ].map(s => ({ ...s, ctx }));
+    }
+    const ATTACKS = { A: attackA, B: attackB, C: attackC, D: attackD };
+
+    // 攻撃の選び方：新しく解禁された攻撃は最初の1回を必ず出す。以降は新しい順に重み 1.6 / 1.2 / 1.0。同じ攻撃は3連続させない
+    let lastTypes = [], seenTypes = new Set();
+    function pickType(types) {
+      const fresh = types.filter(t => !seenTypes.has(t));
+      if (fresh.length) return fresh[0];
+      const n = types.length;
+      const w = types.map((t, i) => (i === n - 1 ? 1.6 : i === n - 2 ? 1.2 : 1.0));
+      if (lastTypes.length >= 2 && lastTypes[0] === lastTypes[1]) { const k = types.indexOf(lastTypes[0]); if (k >= 0 && n > 1) w[k] = 0; }
+      let r = Math.random() * w.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < n; i++) { r -= w[i]; if (r <= 0) return types[i]; }
+      return types[n - 1];
+    }
+    function startAttack() {
+      const d = diff();
+      const type = pickType(d.types);
+      seenTypes.add(type); lastTypes = [type, lastTypes[0]];
+      cur = { steps: ATTACKS[type](d), i: 0, st: 0 };
+      sfx('tele');
+    }
+    function stepAttack(dt) {
+      if (!cur) return;
+      const s = cur.steps[cur.i];
+      cur.st += dt;
+      s.run(clamp(cur.st / s.d, 0, 1), s.ctx);
+      if (state !== 'play') return;
+      if (cur.st >= s.d) {
+        cur.i++; cur.st = 0;
+        if (cur.i >= cur.steps.length) { cur = null; hideArms(); catRest(); wait = diff().interval; }
+      }
+    }
+
+    /* ---- 進行 ---- */
+    // デバッグ用：?t=55 で55秒から開始。この場合はベスト更新とシェアを止める（練習モード）
+    const _tp = parseFloat(new URLSearchParams(location.search).get('t'));
+    const START_T = Number.isFinite(_tp) ? clamp(_tp, 0, STAGE.clearTime - 1) : 0;
+    const PRACTICE = START_T > 0;
+    function start() {
+      state = 'play'; t = START_T; cur = null; wait = 0.8; lastTypes = []; seenTypes = new Set();
+      overlay.classList.remove('show');
+      catEl.className = ''; cupEl.getAnimations().forEach(a => a.cancel()); cupEl.style.visibility = '';
+      hideArms(); catRest();
+      P.x = W / 2; lookX = W / 2; drawCup();
+      last = performance.now();
+      requestAnimationFrame(loop);
+    }
+    function loop(now) {
+      if (state !== 'play') return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      t += dt;
+      scoreEl.innerHTML = t.toFixed(1) + '<small>s</small>';
+      if (t >= STAGE.clearTime) { clear(); return; }
+      if (cur) stepAttack(dt);
+      else { catFollow(dt); wait -= dt; if (wait <= 0) startAttack(); }   // 待機中は少し遅れてコップを目で追う
+      requestAnimationFrame(loop);
+    }
+    function titleFor(sec) { return STAGE.titles.find(x => sec < x.under).name; }
+    function saveBest(sec) { if (PRACTICE) return; if (sec > best) { best = sec; localStorage.setItem(STAGE.storageKey, String(best)); } showBest(); }
+
+    function die(dir) {
+      if (state !== 'play') return;
+      state = 'dead';
+      const sec = t;
+      catCalm();
+      const x0 = P.x - CUP_W / 2;
+      const r = a => `rotate(${dir * a}deg)`;
+      tone(90, 0.1, 'triangle', 0.15);
+      cupEl.animate([
+        { transform: `translate(${x0}px, ${cupY}px) ${r(0)} scale(1)`, offset: 0 },
+        { transform: `translate(${x0 + dir * 10}px, ${cupY - 4}px) ${r(28)} scale(1.02)`, offset: 0.3, easing: 'ease-out' },
+        { transform: `translate(${x0 + dir * 26}px, ${H - 30}px) ${r(95)} scale(1.15)`, offset: 1, easing: 'cubic-bezier(.5,0,1,1)' },
+      ], { duration: 520, fill: 'forwards' });
+      setTimeout(() => {
+        cupEl.style.visibility = 'hidden';
+        shatter(P.x + dir * 26, H - 16);
+        sfx('crash'); flash.textContent = 'パリン'; flash.className = 'on';
+      }, 520);
+      setTimeout(() => {
+        hideArms(); catRest(); catEl.classList.add('big');
+        const line = (sec >= 45 && Math.random() < 0.5) ? rnd(STAGE.lateDeathLines) : rnd(STAGE.deathLines);
+        result(`コップは<br><b>${sec.toFixed(1)}</b>秒 生き延びた`, line, titleFor(sec), sec);
+      }, 1200);
+      saveBest(sec);
+    }
+    function shatter(x, y) {
+      for (let i = 0; i < 14; i++) {
+        const d = document.createElement('div');
+        d.className = 'shard';
+        const size = 6 + Math.random() * 10;
+        d.style.width = size + 'px'; d.style.height = size + 'px';
+        d.style.clipPath = Math.random() < 0.5 ? 'polygon(0 0,100% 30%,40% 100%)' : 'polygon(20% 0,100% 0,60% 100%,0 70%)';
+        game.appendChild(d);
+        const ang = -Math.PI * (0.15 + Math.random() * 0.7);
+        const v = 90 + Math.random() * 160;
+        const vx = Math.cos(ang) * v, vy = Math.sin(ang) * v;
+        const rot = (Math.random() * 2 - 1) * 720;
+        const frames = [];
+        for (let k = 0; k <= 10; k++) {
+          const tt = k / 10 * 0.75;
+          const px = x + vx * tt, py = y + vy * tt + 420 * tt * tt;
+          frames.push({ transform: `translate(${px}px, ${Math.min(py, H - 12)}px) rotate(${rot * tt}deg)`, opacity: k < 8 ? 1 : (10 - k) / 2, offset: k / 10 });
+        }
+        d.animate(frames, { duration: 750, fill: 'forwards' });
+        setTimeout(() => d.remove(), 800);
+      }
+    }
+    function clear() {
+      state = 'clear';
+      const sec = STAGE.clearTime;
+      sfx('clear');
+      hideArms(); catCalm(); catEl.classList.add('sleep');
+      setTimeout(() => {
+        catEl.classList.add('big');
+        result(`猫は飽きて寝た。<br><b>${sec}</b>秒 逃げ切った`, rnd(STAGE.clearLines), titleFor(sec), sec);
+      }, 900);
+      saveBest(sec);
+    }
+    function result(bigHtml, line, title, sec) {
+      bigEl.innerHTML = bigHtml; lineEl.textContent = '「' + line + '」'; subEl.textContent = title;
+      btns.innerHTML = '';
+      const again = document.createElement('button'); again.textContent = 'もう一回';
+      again.onclick = () => { flash.className = ''; start(); };
+      const share = document.createElement('button'); share.className = 'ghost'; share.textContent = 'Xで自慢する';
+      share.onclick = () => {
+        const text = state === 'clear'
+          ? `【コップ、逃げる。】60秒逃げ切った。猫は飽きて寝てしまった。称号：机の主`
+          : `【コップ、逃げる。】コップは${sec.toFixed(1)}秒生き延びた「${line}」`;
+        window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text + '\n' + location.href), '_blank');
+      };
+      if (PRACTICE) { subEl.textContent = '練習モード（記録なし）'; btns.append(again); overlay.classList.add('show'); return; }
+      btns.append(again, share);
+      overlay.classList.add('show');
+    }
+
+    /* ---- 入力 ---- */
+    let drag = null;
+    game.addEventListener('pointerdown', e => {
+      if (state !== 'play') return;
+      e.preventDefault();
+      drag = { sx: e.clientX, px: P.x }; game.setPointerCapture(e.pointerId);
+    });
+    game.addEventListener('dragstart', e => e.preventDefault());
+    game.addEventListener('pointermove', e => {
+      if (!drag || state !== 'play') return;
+      P.x = clamp(drag.px + (e.clientX - drag.sx) * 1.15, CUP_W / 2, W - CUP_W / 2); drawCup();
+    });
+    game.addEventListener('pointerup', () => drag = null);
+    game.addEventListener('pointercancel', () => drag = null);
+    const keys = {};
+    addEventListener('keydown', e => { keys[e.key] = true; if (state === 'title' && (e.key === ' ' || e.key === 'Enter')) $('#btnMain').click(); });
+    addEventListener('keyup', e => keys[e.key] = false);
+    setInterval(() => {
+      if (state !== 'play') return;
+      const v = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
+      if (v) { P.x = clamp(P.x + v * 9, CUP_W / 2, W - CUP_W / 2); drawCup(); }
+    }, 16);
+
+    /* ---- 効果音（WebAudio合成。「にゃっ」は録音があれば差し替え） ---- */
+    let AC = null;
+    function audioInit() { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); loadNya(); }
+    function tone(f, dur, type = 'sine', vol = 0.15) {
+      if (!AC) return;
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = type; o.frequency.value = f; g.gain.value = vol;
+      g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+      o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
+    }
+    function noise(dur, vol = 0.25) {
+      if (!AC) return;
+      const b = AC.createBuffer(1, AC.sampleRate * dur, AC.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter();
+      f.type = 'highpass'; f.frequency.value = 2500; g.gain.value = vol;
+      s.buffer = b; s.connect(f).connect(g).connect(AC.destination); s.start();
+    }
+    let nyaSample = null;
+    function loadNya() {                        // 録音した「にゃっ」（img/nya.mp3）。読めなければ合成音のまま
+      if (nyaSample || !AC || loadNya.busy) return; loadNya.busy = true;
+      fetch('img/nya.mp3').then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b)).then(b => nyaSample = b).catch(() => { });
+    }
+    function nya() {
+      if (!AC) return;
+      if (nyaSample) { const s = AC.createBufferSource(), g = AC.createGain(); g.gain.value = 0.9; s.buffer = nyaSample; s.connect(g).connect(AC.destination); s.start(); return; }
+      const now = AC.currentTime, dur = 0.22;
+      const o = AC.createOscillator(); o.type = 'sawtooth';
+      o.frequency.setValueAtTime(640, now);
+      o.frequency.exponentialRampToValueAtTime(760, now + 0.05);
+      o.frequency.exponentialRampToValueAtTime(430, now + dur);
+      const vib = AC.createOscillator(), vg = AC.createGain();
+      vib.frequency.value = 28; vg.gain.value = 18; vib.connect(vg).connect(o.frequency);
+      const f1 = AC.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 3;
+      f1.frequency.setValueAtTime(1900, now); f1.frequency.exponentialRampToValueAtTime(1000, now + dur);
+      const f2 = AC.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 3200;
+      const g = AC.createGain();
+      g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.35, now + 0.02);
+      g.gain.setValueAtTime(0.35, now + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      o.connect(f1).connect(f2).connect(g).connect(AC.destination);
+      o.start(now); vib.start(now); o.stop(now + dur); vib.stop(now + dur);
+    }
+    const sfxOnce = {};
+    function sfx(kind, p) {
+      if (kind === 'tele') { sfxOnce.strike = false; }   // 予告音は鳴らさない（目だけで読む）
+      if (kind === 'strike' && !sfxOnce.strike && p > 0.1) { sfxOnce.strike = true; tone(120, 0.12, 'triangle', 0.2); }
+      if (kind === 'nya') nya();
+      if (kind === 'crash') { noise(0.35); tone(1800, 0.25, 'sine', 0.08); }
+      if (kind === 'clear') { [523, 659, 784].forEach((f, i) => setTimeout(() => tone(f, 0.4, 'sine', 0.12), i * 120)); }
+    }
+
+    /* ---- 起動 ---- */
+    $('#btnMain').onclick = () => { audioInit(); start(); };
+    game.addEventListener('pointerdown', audioInit, { once: true });
+    addEventListener('resize', layout);
+    layout(); showBest(); catRest();
+  </script>
 </body>
+
 </html>
