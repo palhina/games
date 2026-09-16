@@ -15,11 +15,6 @@
   <style>
     :root {
       --bg: #f7ecd2;
-      --table: #c07f45;
-      --edge: #8e5628;
-      --floor: #a9713b;
-      --fur: #4c403a;
-      --line: #241b15;
       --ink: #2b2118;
       --accent: #d9483f;
     }
@@ -377,7 +372,7 @@
 
 <body>
   <div id="game">
-    <div id="score">0.0<small>s</small></div>
+    <div id="score"><span id="sec">0.0</span><small>s</small></div>
     <div id="best"></div>
 
     <div id="cat">
@@ -428,7 +423,6 @@
        ステージ設定
        ========================================================= */
     const STAGE = {
-      id: 'cat',
       title: 'コップ、逃げる。',
       clearTime: 60,
       difficulty: [
@@ -443,16 +437,16 @@
       nyaLead: 0.12,
       pupil: { thin: 7, narrow: 4, wide: 26, look: 36 },   // 瞳孔：通常／狙い中（細める）／攻撃直前（丸く）／左右に動く量（画像座標）
       deathLines: [
-        '見てた？', '今のは事故', '机に置く方が悪い', '反省はしてる。ちょっと', 'ほな',
-        '手が滑った。滑らせた', '次はもっと早いで', '悪いとは思ってる。落とすけど',
-        'ごめんて。ほんまに。ちょっとだけ', 'ごめんて。ほんまに。ちょっとだけ',
-        '今日はこのへんで', '音、聞いた？',
+        '今の見とった？', '今のは事故や', '机に置く方が悪いで、\n知らんけど', '反省はしてる。ちょっとだけ', 'ほな',
+        '手が滑った。あえてな。', '次はもっと早いで', '悪いとは思ってる。落とすけど',
+        'ごめんて。ほんまに。ちょっとだけ',
+        '今日はこのへんで', 'コップ、ええ音するな',
       ],
-      lateDeathLines: ['痛かった？…そっか'],
-      clearLines: ['ようやった。ちょっと本気出した', '最後まで逃げたコップ、あんまりおらん'],
+      lateDeathLines: ['痛かった？…ごめんやで'],
+      clearLines: ['ようやった。\nちょっと本気出した', '最後まで逃げたコップ、\nあんまりおらん'],
       titles: [
-        { under: 5, name: '称号：置き物' },
-        { under: 15, name: '称号：揺れただけ' },
+        { under: 5, name: '称号：一瞬のいのち' },
+        { under: 15, name: '称号：机に触れただけ' },
         { under: 30, name: '称号：逃げ足のコップ' },
         { under: 60, name: '称号：不屈のコップ' },
         { under: 1e9, name: '称号：机の主' },
@@ -470,7 +464,7 @@
     /* ================= エンジン ================= */
     const $ = s => document.querySelector(s);
     const game = $('#game'), catEl = $('#cat'), cupEl = $('#cup'), tableEl = $('#table');
-    const scoreEl = $('#score'), bestEl = $('#best'), overlay = $('#overlay');
+    const propsEl = $('#props'), secEl = $('#sec'), bestEl = $('#best'), overlay = $('#overlay');
     const bigEl = $('#big'), lineEl = $('#line'), subEl = $('#sub'), btns = $('#btns'), flash = $('#flash');
     const pL = $('#pL'), pR = $('#pR');
     const EYE = { l: 293.8, r: 587.0 };
@@ -479,17 +473,21 @@
 
     const CUP_W = 46, CUP_H = 47, PAW_W = 60;
     const HIT_MARGIN = 18;
-    let W = 0, H = 0, tableY = 0, cupY = 0, cupLine = 0;
+    let W = 0, H = 0, cupY = 0, cupLine = 0;
     let state = 'title';
     let t = 0, last = 0;
     let P = { x: 0 };
     let cur = null, wait = 0;
-    let best = +(localStorage.getItem(STAGE.storageKey) || 0);
+    let best = loadBest();
+    // localStorage はプライベートモードや Cookie ブロック下でアクセス自体が例外を投げる。ここで落とすと以降の初期化が全部止まる
+    function loadBest() { try { return +(localStorage.getItem(STAGE.storageKey) || 0) || 0; } catch (e) { return 0; } }
     const rnd = a => a[Math.floor(Math.random() * a.length)];
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
     function layout() {
-      W = game.clientWidth; H = game.clientHeight;
+      const w = game.clientWidth, h = game.clientHeight;
+      if (W && w === W && h === H) return;   // サイズが変わらない resize（モバイルのアドレスバーの出入り等）では何もしない
+      W = w; H = h;
       // 机の奥端 44%。猫は顎が机に隠れる位置（口は見える）。コップの底 73%。その下は親指エリア
       const tableTop = Math.round(H * 0.44);
       tableEl.style.top = tableTop + 'px'; tableEl.style.height = (H - tableTop) + 'px';   // 縦長端末では横を切って下端まで届かせる
@@ -499,26 +497,30 @@
       const cupBase = Math.round(H * 0.73);
       cupY = cupBase - CUP_H;
       cupLine = cupBase - CUP_H * 0.45;           // 肉球の中心が来る高さ（コップの胴体）
-      tableY = cupBase;
-      // 肩：顔の両脇、机の縁のすぐ下
-      SH.L = { x: Math.round(W / 2 - catW * 0.38), y: tableTop + 10 };
-      SH.R = { x: Math.round(W / 2 + catW * 0.38), y: tableTop + 10 };
+      // 肩：顔の両脇、机の縁のすぐ下。盤面が狭いときは腕の根元が画面外へ出ないよう内側へ寄せる
+      const shx = Math.max(0, Math.min(catW * 0.38, W / 2 - PAW_W / 2));
+      SH.L = { x: Math.round(W / 2 - shx), y: tableTop + 10 };
+      SH.R = { x: Math.round(W / 2 + shx), y: tableTop + 10 };
       P.x = clamp(P.x || W / 2, CUP_W / 2, W - CUP_W / 2);
-      drawProps();
+      placeProps();
       drawCup();
     }
-    function drawProps() {
-      const box = document.getElementById('props'); box.innerHTML = '';
-      for (const p of STAGE.props) {
+    let propEls = [];
+    function buildProps() {                         // 小物の要素は起動時に1回だけ作る（resize のたびに作り直すとちらつく）
+      propsEl.innerHTML = '';
+      propEls = STAGE.props.map(p => {
         const el = document.createElement('div'); el.className = 'prop';
         if (p.src) { const im = document.createElement('img'); im.src = p.src; im.style.width = p.size + 'px'; el.appendChild(im); }
         else { el.textContent = p.emoji; el.style.fontSize = p.size + 'px'; }
-        el.style.left = (p.x * W) + 'px'; el.style.top = (p.y * H) + 'px';
-        if (p.rotate) el.style.transform += ` rotate(${p.rotate}deg)`;
-        box.appendChild(el);
-      }
+        el.style.transform = `translate(-50%,-50%)${p.rotate ? ` rotate(${p.rotate}deg)` : ''}`;   // クラス側の translate を消さないよう常にまとめて指定する
+        propsEl.appendChild(el);
+        return el;
+      });
     }
+    function placeProps() { STAGE.props.forEach((p, i) => { propEls[i].style.left = (p.x * W) + 'px'; propEls[i].style.top = (p.y * H) + 'px'; }); }
     function drawCup() { cupEl.style.transform = `translate(${P.x - CUP_W / 2}px, ${cupY}px)`; }
+    let shownSec = '';
+    function drawScore() { const s = t.toFixed(1); if (s !== shownSec) { shownSec = s; secEl.textContent = s; } }   // 表示が変わるときだけ書き込む（0.1s 刻みなので実際は数フレームに1回）
     function showBest() { bestEl.textContent = best ? `ベスト ${best.toFixed(1)}s` : ''; }
 
     /* ---- 猫の目・口 ---- */
@@ -561,7 +563,6 @@
       el.style.height = Math.max(0, depth * L - 15) + 'px';     // 先端の肉球の中心が (tx,ty) に来る
     }
     function hideArms() { armL.style.display = 'none'; armR.style.display = 'none'; }
-    function nearSide(x) { return x < W / 2 ? 'L' : 'R'; }
     function farSide(x) { return x < W / 2 ? 'R' : 'L'; }
 
     /* ---- 当たり判定 ---- */
@@ -627,8 +628,10 @@
         {
           d: d.tele, run: (p, c) => {
             if (c.x1 == null) {
-              const gap = CUP_W * 1.6;
-              const gc = clamp(P.x + (Math.random() * 2 - 1) * CUP_W * 1.3, gap / 2 + PAW_W / 2, W - gap / 2 - PAW_W / 2);
+              const gap = Math.max(CUP_W * 1.1, Math.min(CUP_W * 1.6, W - PAW_W));   // 盤面が狭いときは隙間を詰める（コップ1.1個分は必ず残す）
+              const edge = gap / 2 + PAW_W / 2;
+              const gc = clamp(P.x + (Math.random() * 2 - 1) * CUP_W * 1.3,
+                Math.min(edge, W / 2), Math.max(W - edge, W / 2));   // 下限>上限にならないよう中央へ寄せる
               c.x1 = gc - gap / 2 - PAW_W / 2; c.x2 = gc + gap / 2 + PAW_W / 2;
             }
             teleRun(p, d.tele, P.x);
@@ -686,7 +689,7 @@
       overlay.classList.remove('show');
       catEl.className = ''; cupEl.getAnimations().forEach(a => a.cancel()); cupEl.style.visibility = '';
       hideArms(); catRest();
-      P.x = W / 2; lookX = W / 2; drawCup();
+      P.x = W / 2; lookX = W / 2; drag = null; drawCup(); drawScore();
       last = performance.now();
       requestAnimationFrame(loop);
     }
@@ -694,14 +697,14 @@
       if (state !== 'play') return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       t += dt;
-      scoreEl.innerHTML = t.toFixed(1) + '<small>s</small>';
+      drawScore();
       if (t >= STAGE.clearTime) { clear(); return; }
       if (cur) stepAttack(dt);
       else { catFollow(dt); wait -= dt; if (wait <= 0) startAttack(); }   // 待機中は少し遅れてコップを目で追う
       requestAnimationFrame(loop);
     }
     function titleFor(sec) { return STAGE.titles.find(x => sec < x.under).name; }
-    function saveBest(sec) { if (PRACTICE) return; if (sec > best) { best = sec; localStorage.setItem(STAGE.storageKey, String(best)); } showBest(); }
+    function saveBest(sec) { if (PRACTICE) return; if (sec > best) { best = sec; try { localStorage.setItem(STAGE.storageKey, String(best)); } catch (e) { } } showBest(); }
 
     function die(dir) {
       if (state !== 'play') return;
@@ -769,8 +772,8 @@
       const share = document.createElement('button'); share.className = 'ghost'; share.textContent = 'Xで自慢する';
       share.onclick = () => {
         const text = state === 'clear'
-          ? `【コップ、逃げる。】60秒逃げ切った。猫は飽きて寝てしまった。称号：机の主`
-          : `【コップ、逃げる。】コップは${sec.toFixed(1)}秒生き延びた「${line}」`;
+          ? `【${STAGE.title}】60秒逃げ切った。猫は飽きて寝てしまった。称号：机の主`
+          : `【${STAGE.title}】コップは${sec.toFixed(1)}秒生き延びた「${line}」`;
         window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text + '\n' + location.href), '_blank');
       };
       if (PRACTICE) { subEl.textContent = '練習モード（記録なし）'; btns.append(again); overlay.classList.add('show'); return; }
@@ -781,20 +784,23 @@
     /* ---- 入力 ---- */
     let drag = null;
     game.addEventListener('pointerdown', e => {
-      if (state !== 'play') return;
+      if (state !== 'play' || drag) return;          // 2本目以降の指は無視（1本目のドラッグを乗っ取らせない）
       e.preventDefault();
-      drag = { sx: e.clientX, px: P.x }; game.setPointerCapture(e.pointerId);
+      drag = { id: e.pointerId, sx: e.clientX, px: P.x };
+      try { game.setPointerCapture(e.pointerId); } catch (err) { }
     });
     game.addEventListener('dragstart', e => e.preventDefault());
     game.addEventListener('pointermove', e => {
-      if (!drag || state !== 'play') return;
+      if (!drag || drag.id !== e.pointerId || state !== 'play') return;
       P.x = clamp(drag.px + (e.clientX - drag.sx) * 1.15, CUP_W / 2, W - CUP_W / 2); drawCup();
     });
-    game.addEventListener('pointerup', () => drag = null);
-    game.addEventListener('pointercancel', () => drag = null);
+    const endDrag = e => { if (drag && drag.id === e.pointerId) drag = null; };
+    game.addEventListener('pointerup', endDrag);
+    game.addEventListener('pointercancel', endDrag);
     const keys = {};
     addEventListener('keydown', e => { keys[e.key] = true; if (state === 'title' && (e.key === ' ' || e.key === 'Enter')) $('#btnMain').click(); });
     addEventListener('keyup', e => keys[e.key] = false);
+    addEventListener('blur', () => { for (const k in keys) keys[k] = false; });   // 別タブへ移ると keyup が来ず、押しっぱなしのまま残る
     setInterval(() => {
       if (state !== 'play') return;
       const v = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
@@ -803,7 +809,13 @@
 
     /* ---- 効果音（WebAudio合成。「にゃっ」は録音があれば差し替え） ---- */
     let AC = null;
-    function audioInit() { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); loadNya(); }
+    function audioInit() {                      // 音を作れない端末でもゲームは動かす（ここで投げると start() に到達しない）
+      try {
+        if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+        if (AC.state === 'suspended') AC.resume();
+        loadNya();
+      } catch (e) { }
+    }
     function tone(f, dur, type = 'sine', vol = 0.15) {
       if (!AC) return;
       const o = AC.createOscillator(), g = AC.createGain();
@@ -855,8 +867,13 @@
     /* ---- 起動 ---- */
     $('#btnMain').onclick = () => { audioInit(); start(); };
     game.addEventListener('pointerdown', audioInit, { once: true });
-    addEventListener('resize', layout);
-    layout(); showBest(); catRest();
+    let rzPending = false;
+    addEventListener('resize', () => {              // resize は連続して飛んでくるので1フレームに1回へ間引く
+      if (rzPending) return;
+      rzPending = true;
+      requestAnimationFrame(() => { rzPending = false; layout(); });
+    });
+    buildProps(); layout(); showBest(); catRest();
   </script>
 </body>
 
